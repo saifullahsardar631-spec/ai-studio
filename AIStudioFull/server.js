@@ -34,26 +34,41 @@ keyConfigured: Boolean(GEMINI_API_KEY)
 });
 
 function buildContents(prompt, history = []) {
-const recent = Array.isArray(history) ? history.slice(-12) : [];
+const recent = Array.isArray(history)
+? history.slice(-12)
+: [];
 
 const contents = recent
 .filter(m => m && m.content)
 .map(m => ({
-role: m.role === "assistant" ? "model" : "user",
-parts: [{ text: String(m.content) }]
+role: m.role === "assistant"
+? "model"
+: "user",
+parts: [
+{
+text: String(m.content)
+}
+]
 }));
 
 contents.push({
 role: "user",
-parts: [{ text: prompt }]
+parts: [
+{
+text: prompt
+}
+]
 });
 
 return contents;
 }
 
 app.post("/api/chat", async (req, res) => {
-const prompt = String(req.body?.prompt || "").trim();
-const history = req.body?.history || [];
+const prompt =
+String(req.body?.prompt || "").trim();
+
+const history =
+req.body?.history || [];
 
 if (!prompt) {
 return res.status(400).json({
@@ -77,11 +92,17 @@ encodeURIComponent(GEMINI_API_KEY);
 ```
 const response = await fetch(url, {
   method: "POST",
+
   headers: {
     "Content-Type": "application/json"
   },
+
   body: JSON.stringify({
-    contents: buildContents(prompt, history),
+    contents: buildContents(
+      prompt,
+      history
+    ),
+
     generationConfig: {
       temperature: 0.7,
       maxOutputTokens: 2048
@@ -89,7 +110,8 @@ const response = await fetch(url, {
   })
 });
 
-const raw = await response.text();
+const raw =
+  await response.text();
 
 let data;
 
@@ -117,7 +139,9 @@ const answer =
     .trim();
 
 if (!answer) {
-  throw new Error("Gemini returned no response.");
+  throw new Error(
+    "Gemini returned no response."
+  );
 }
 
 return res.json({
@@ -130,7 +154,10 @@ return res.json({
 ```
 
 } catch (error) {
-console.error("Gemini error:", error);
+console.error(
+"Gemini error:",
+error
+);
 
 ```
 return res.status(503).json({
@@ -144,7 +171,8 @@ return res.status(503).json({
 });
 
 app.post("/api/image", (req, res) => {
-const prompt = String(req.body?.prompt || "").trim();
+const prompt =
+String(req.body?.prompt || "").trim();
 
 if (!prompt) {
 return res.status(400).json({
@@ -163,7 +191,8 @@ message:
 });
 
 app.post("/api/video", (req, res) => {
-const prompt = String(req.body?.prompt || "").trim();
+const prompt =
+String(req.body?.prompt || "").trim();
 
 if (!prompt) {
 return res.status(400).json({
@@ -176,14 +205,16 @@ ok: true,
 type: "video",
 status: "provider-required",
 prompt,
-jobId: "demo_" + Date.now(),
+jobId:
+"demo_" + Date.now(),
 message:
 "Video generation UI is ready. Connect a video provider for real video generation."
 });
 });
 
 app.post("/api/voice", (req, res) => {
-const text = String(req.body?.text || "").trim();
+const text =
+String(req.body?.text || "").trim();
 
 if (!text) {
 return res.status(400).json({
@@ -200,7 +231,8 @@ text
 });
 
 app.post("/api/captions", (req, res) => {
-const text = String(req.body?.text || "").trim();
+const text =
+String(req.body?.text || "").trim();
 
 if (!text) {
 return res.status(400).json({
@@ -213,7 +245,8 @@ const parts = text
 .map(s => s.trim())
 .filter(Boolean);
 
-const captions = parts.map((line, i) => ({
+const captions =
+parts.map((line, i) => ({
 start: i * 3,
 end: i * 3 + 3,
 text: line
@@ -229,11 +262,13 @@ captions
 
 app.listen(port, () => {
 console.log(
-"AI Studio Backend running on port " + port
+"AI Studio Backend running on port " +
+port
 );
 
 console.log(
-"Gemini model: " + GEMINI_MODEL
+"Gemini model: " +
+GEMINI_MODEL
 );
 
 console.log(
