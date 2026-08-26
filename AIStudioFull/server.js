@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
@@ -12,274 +13,186 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 3000;
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+const apiKey = process.env.GEMINI_API_KEY;
+const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 app.use(cors());
 app.use(express.json({ limit: "4mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-app.get("/", (req, res) => {
-res.sendFile(path.join(__dirname, "public", "index.html"));
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.get("/health", (req, res) => {
-res.json({
-ok: true,
-service: "AI Studio Backend",
-provider: "Google Gemini",
-model: GEMINI_MODEL,
-keyConfigured: Boolean(GEMINI_API_KEY)
-});
-});
-
-function buildContents(prompt, history = []) {
-const recent = Array.isArray(history)
-? history.slice(-12)
-: [];
-
-const contents = [];
-
-for (const message of recent) {
-if (!message || !message.content) {
-continue;
-}
-
-```
-contents.push({
-  role: message.role === "assistant" ? "model" : "user",
-  parts: [
-    {
-      text: String(message.content)
-    }
-  ]
-});
-```
-
-}
-
-contents.push({
-role: "user",
-parts: [
-{
-text: prompt
-}
-]
+app.get("/health", (_req, res) => {
+  res.json({
+    ok: true,
+    service: "AI Studio Backend",
+    provider: "Google Gemini",
+    model,
+    keyConfigured: Boolean(apiKey)
+  });
 });
 
-return contents;
+function buildPrompt(prompt, history = []) {
+  const recent = Array.isArray(history) ? history.slice(-12) : [];
+
+  const previous = recent
+    .filter(m => m && m.content)
+    .map(m => {
+      const role = m.role === "assistant" ? "Assistant" : "User";
+      return `${role}: ${String(m.content)}`;
+    })
+    .join("\n");
+
+  return previous
+    ? `${previous}\nUser: ${prompt}\nAssistant:`
+    : prompt;
 }
 
 app.post("/api/chat", async (req, res) => {
-const prompt = String(req.body?.prompt || "").trim();
-const history = req.body?.history || [];
+  const prompt = String(req.body?.prompt || "").trim();
+  const history = req.body?.history || [];
 
-if (!prompt) {
-return res.status(400).json({
-ok: false,
-error: "Prompt is required"
-});
-}
+  if (!prompt) {
+    return res.status(400).json({
+      ok: false,
+      error: "Prompt is required"
+    });
+  }
 
-if (!GEMINI_API_KEY) {
-return res.status(500).json({
-ok: false,
-error: "GEMINI_API_KEY is not configured."
-});
-}
+  if (!ai) {
+    return res.status(500).json({
+      ok: false,
+      error: "GEMINI_API_KEY is not configured."
+    });
+  }
 
-try {
-const url =
-"https://generativelanguage.googleapis.com/v1beta/models/" +
-GEMINI_MODEL +
-":generateContent?key=" +
-encodeURIComponent(GEMINI_API_KEY);
+  try {
+    const response = await ai.models.generateContent({
+      model,
+      contents: buildPrompt(prompt, history)
+    });
 
-```
-const response = await fetch(url, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify({
-    contents: buildContents(prompt, history),
-    generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 2048
+    const answer = response.text?.trim();
+
+    if (!answer) {
+      return res.status(502).json({
+        ok: false,
+        error: "Gemini returned no response."
+      });
     }
-  })
-});
 
-const raw = await response.text();
+    return res.json({
+      ok: true,
+      type: "chat",
+      status: "success",
+      provider: "Google Gemini",
+      model,
+      message: answer
+    });
 
-let data;
+  } catch (error) {
+    console.error("Gemini error:", error);
 
-try {
-  data = JSON.parse(raw);
-} catch {
-  return res.status(502).json({
-    ok: false,
-    error: "Gemini returned invalid JSON.",
-    details: raw.slice(0, 500)
-  });
-}
-
-if (!response.ok) {
-  return res.status(response.status).json({
-    ok: false,
-    error:
-      data?.error?.message ||
-      "Gemini request failed.",
-    details: data?.error || null
-  });
-}
-
-const parts =
-  data?.candidates?.[0]?.content?.parts || [];
-
-const answer = parts
-  .map(part => part?.text || "")
-  .join("")
-  .trim();
-
-if (!answer) {
-  return res.status(502).json({
-    ok: false,
-    error: "Gemini returned no response."
-  });
-}
-
-return res.json({
-  ok: true,
-  type: "chat",
-  status: "success",
-  provider: "Google Gemini",
-  model: GEMINI_MODEL,
-  message: answer
-});
-```
-
-} catch (error) {
-console.error("Gemini error:", error);
-
-```
-return res.status(503).json({
-  ok: false,
-  error: "Could not connect to Gemini.",
-  details: error?.message || String(error)
-});
-```
-
-}
+    return res.status(503).json({
+      ok: false,
+      error: "Could not connect to Gemini.",
+      details: error?.message || String(error)
+    });
+  }
 });
 
 app.post("/api/image", (req, res) => {
-const prompt = String(req.body?.prompt || "").trim();
+  const prompt = String(req.body?.prompt || "").trim();
 
-if (!prompt) {
-return res.status(400).json({
-ok: false,
-error: "Prompt is required"
-});
-}
+  if (!prompt) {
+    return res.status(400).json({
+      ok: false,
+      error: "Prompt is required"
+    });
+  }
 
-return res.json({
-ok: true,
-type: "image",
-status: "provider-required",
-prompt,
-message:
-"Image generation UI is ready. Connect an image provider for real image generation."
-});
+  res.json({
+    ok: true,
+    type: "image",
+    status: "provider-required",
+    prompt,
+    message: "Image generation UI is ready."
+  });
 });
 
 app.post("/api/video", (req, res) => {
-const prompt = String(req.body?.prompt || "").trim();
+  const prompt = String(req.body?.prompt || "").trim();
 
-if (!prompt) {
-return res.status(400).json({
-ok: false,
-error: "Prompt is required"
-});
-}
+  if (!prompt) {
+    return res.status(400).json({
+      ok: false,
+      error: "Prompt is required"
+    });
+  }
 
-return res.json({
-ok: true,
-type: "video",
-status: "provider-required",
-prompt,
-jobId: "demo_" + Date.now(),
-message:
-"Video generation UI is ready. Connect a video provider for real video generation."
-});
+  res.json({
+    ok: true,
+    type: "video",
+    status: "provider-required",
+    prompt,
+    jobId: `demo_${Date.now()}`,
+    message: "Video generation UI is ready."
+  });
 });
 
 app.post("/api/voice", (req, res) => {
-const text = String(req.body?.text || "").trim();
+  const text = String(req.body?.text || "").trim();
 
-if (!text) {
-return res.status(400).json({
-ok: false,
-error: "Text is required"
-});
-}
+  if (!text) {
+    return res.status(400).json({
+      ok: false,
+      error: "Text is required"
+    });
+  }
 
-return res.json({
-ok: true,
-type: "voice",
-status: "ready",
-text
-});
+  res.json({
+    ok: true,
+    type: "voice",
+    status: "ready",
+    text
+  });
 });
 
 app.post("/api/captions", (req, res) => {
-const text = String(req.body?.text || "").trim();
+  const text = String(req.body?.text || "").trim();
 
-if (!text) {
-return res.status(400).json({
-ok: false,
-error: "Transcript is required"
-});
-}
+  if (!text) {
+    return res.status(400).json({
+      ok: false,
+      error: "Transcript is required"
+    });
+  }
 
-const parts = text
-.split(/[.!?]+/)
-.map(s => s.trim())
-.filter(Boolean);
+  const parts = text
+    .split(/[.!?]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
 
-const captions = parts.map((line, index) => ({
-start: index * 3,
-end: index * 3 + 3,
-text: line
-}));
+  const captions = parts.map((line, index) => ({
+    start: index * 3,
+    end: index * 3 + 3,
+    text: line
+  }));
 
-return res.json({
-ok: true,
-type: "captions",
-status: "ready",
-captions
-});
-});
-
-app.use((req, res) => {
-res.status(404).json({
-ok: false,
-error: "Route not found",
-path: req.path
-});
+  res.json({
+    ok: true,
+    type: "captions",
+    status: "ready",
+    captions
+  });
 });
 
 app.listen(port, () => {
-console.log(
-"AI Studio Backend running on port " + port
-);
-
-console.log(
-"Gemini model: " + GEMINI_MODEL
-);
-
-console.log(
-"Gemini key configured: " +
-Boolean(GEMINI_API_KEY)
-);
+  console.log(`AI Studio Backend running on http://localhost:${port}`);
+  console.log(`Gemini model: ${model}`);
+  console.log(`Gemini key configured: ${Boolean(apiKey)}`);
 });
