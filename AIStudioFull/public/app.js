@@ -6,11 +6,13 @@ const newChatBtn = document.getElementById("newChat");
 const clearAllBtn = document.getElementById("clearAll");
 const themeToggle = document.getElementById("themeToggle");
 const micBtn = document.getElementById("micBtn");
-const toolPanel = document.getElementById("toolPanel");
 const chatPanel = document.getElementById("chatPanel");
+const toolPanel = document.getElementById("toolPanel");
 const toolCard = document.getElementById("toolCard");
 const pageTitle = document.getElementById("pageTitle");
 const statusLine = document.getElementById("statusLine");
+
+const API_BASE = "";
 
 let chats = JSON.parse(
   localStorage.getItem("aiStudioChats") || "[]"
@@ -19,15 +21,9 @@ let chats = JSON.parse(
 let currentChatId = null;
 let currentMode = "chat";
 
-/* --------------------------------
-   CONFIG
--------------------------------- */
-
-const API_BASE = "";
-
-/* --------------------------------
+/* =========================
    STORAGE
--------------------------------- */
+========================= */
 
 function saveChats() {
   localStorage.setItem(
@@ -36,9 +32,9 @@ function saveChats() {
   );
 }
 
-/* --------------------------------
+/* =========================
    CHAT
--------------------------------- */
+========================= */
 
 function createChat() {
   const id = Date.now().toString();
@@ -58,39 +54,40 @@ function createChat() {
   input.focus();
 }
 
-function currentChat() {
+function getCurrentChat() {
   return chats.find(
-    c => c.id === currentChatId
+    chatItem => chatItem.id === currentChatId
   );
 }
 
 function ensureChat() {
-  if (!currentChatId || !currentChat()) {
+  if (!currentChatId || !getCurrentChat()) {
     createChat();
   }
 }
 
-/* --------------------------------
+/* =========================
    CHAT LIST
--------------------------------- */
+========================= */
 
 function renderChatList() {
   chatList.innerHTML = "";
 
-  chats.slice(0, 30).forEach(c => {
-    const el = document.createElement("div");
+  chats.slice(0, 30).forEach(chatItem => {
+    const element = document.createElement("button");
 
-    el.className =
+    element.type = "button";
+    element.className =
       "chat-item" +
-      (c.id === currentChatId
+      (chatItem.id === currentChatId
         ? " active"
         : "");
 
-    el.textContent =
-      c.title || "New Chat";
+    element.textContent =
+      chatItem.title || "New Chat";
 
-    el.onclick = () => {
-      currentChatId = c.id;
+    element.onclick = () => {
+      currentChatId = chatItem.id;
 
       renderChatList();
       renderMessages();
@@ -98,221 +95,171 @@ function renderChatList() {
       input.focus();
     };
 
-    chatList.appendChild(el);
+    chatList.appendChild(element);
   });
 }
 
-/* --------------------------------
+/* =========================
    MESSAGE
--------------------------------- */
+========================= */
 
 function addMessage(text, role) {
-  const d = document.createElement("div");
+  const element = document.createElement("div");
 
-  d.className =
-    "msg " + role;
+  element.className = `msg ${role}`;
+  element.textContent = text;
 
-  d.textContent = text;
+  chat.appendChild(element);
 
-  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
 
-  chat.scrollTop =
-    chat.scrollHeight;
-
-  return d;
+  return element;
 }
 
-/* --------------------------------
-   RENDER MESSAGES
--------------------------------- */
+/* =========================
+   RENDER
+========================= */
 
 function renderMessages() {
   chat.innerHTML = "";
 
-  const c = currentChat();
+  const current = getCurrentChat();
 
-  if (!c || !c.messages.length) {
+  if (!current || current.messages.length === 0) {
     chat.innerHTML = `
       <div class="welcome">
+        <div class="welcome-icon">✦</div>
 
-        <div class="welcome-icon">
-          ✦
-        </div>
-
-        <h2>
-          How can I help?
-        </h2>
+        <h2>How can I help?</h2>
 
         <p>
-          Ask anything.
-          Your
-          <strong>AI Studio</strong>
+          Ask anything. Your
+          <strong>Gemini AI</strong>
           will answer.
         </p>
 
         <div class="suggestions">
 
-          <button class="suggestion">
+          <button class="suggestion" type="button">
             Explain artificial intelligence simply.
           </button>
 
-          <button class="suggestion">
+          <button class="suggestion" type="button">
             Write a short Urdu story.
           </button>
 
-          <button class="suggestion">
+          <button class="suggestion" type="button">
             Help me learn JavaScript.
           </button>
 
-          <button class="suggestion">
+          <button class="suggestion" type="button">
             Pakistan ka capital kya hai?
           </button>
 
         </div>
-
       </div>
     `;
 
     bindSuggestions();
-
     return;
   }
 
-  c.messages.forEach(m => {
-
+  current.messages.forEach(message => {
     addMessage(
-      m.content,
-      m.role === "user"
+      message.content,
+      message.role === "user"
         ? "user"
         : "bot"
     );
-
   });
 }
 
-/* --------------------------------
+/* =========================
    SUGGESTIONS
--------------------------------- */
+========================= */
 
 function bindSuggestions() {
-
   document
     .querySelectorAll(".suggestion")
     .forEach(button => {
-
       button.onclick = () => {
-
         input.value =
           button.textContent.trim();
 
+        input.focus();
         form.requestSubmit();
-
       };
-
     });
-
 }
 
-/* --------------------------------
-   SAFE JSON
--------------------------------- */
+/* =========================
+   API RESPONSE
+========================= */
 
-async function getResponseData(response) {
-
-  const contentType =
-    response.headers.get(
-      "content-type"
-    ) || "";
-
-  const text =
-    await response.text();
+async function readResponse(response) {
+  const text = await response.text();
 
   if (!text.trim()) {
-
     throw new Error(
-      `Server returned an empty response (HTTP ${response.status}).`
+      `Server returned an empty response. HTTP ${response.status}`
     );
-
-  }
-
-  if (
-    contentType.includes(
-      "application/json"
-    )
-  ) {
-
-    try {
-
-      return JSON.parse(text);
-
-    } catch {
-
-      throw new Error(
-        "Server returned invalid JSON."
-      );
-
-    }
-
   }
 
   try {
-
     return JSON.parse(text);
-
   } catch {
-
     throw new Error(
-      `Server returned an unexpected response (HTTP ${response.status}).`
+      `Invalid server response. HTTP ${response.status}`
     );
-
   }
 }
 
-/* --------------------------------
-   SEND CHAT
--------------------------------- */
+/* =========================
+   SEND MESSAGE
+========================= */
 
 async function sendMessage(prompt) {
-
   ensureChat();
 
-  const c =
-    currentChat();
+  const current = getCurrentChat();
 
-  c.messages.push({
+  current.messages.push({
     role: "user",
     content: prompt
   });
 
-  if (
-    c.title === "New Chat"
-  ) {
-
-    c.title =
-      prompt.slice(0, 42);
-
+  if (current.title === "New Chat") {
+    current.title =
+      prompt.length > 42
+        ? prompt.slice(0, 42) + "..."
+        : prompt;
   }
 
   saveChats();
-
   renderChatList();
   renderMessages();
 
   input.value = "";
-
   input.disabled = true;
   micBtn.disabled = true;
 
-  const bot =
+  const botMessage =
     addMessage(
-      "Thinking…",
+      "Thinking...",
       "bot"
     );
 
-  try {
+  statusLine.textContent =
+    "Connecting to Google Gemini...";
 
-    statusLine.textContent =
-      "Google Gemini • AI Studio";
+  try {
+    const history =
+      current.messages
+        .slice(-11, -1)
+        .map(message => ({
+          role: message.role,
+          content: message.content
+        }));
 
     const response =
       await fetch(
@@ -325,238 +272,174 @@ async function sendMessage(prompt) {
               "application/json"
           },
 
-          body:
-            JSON.stringify({
-
-              prompt,
-
-              history:
-                c.messages.slice(
-                  -12,
-                  -1
-                )
-
-            })
-
+          body: JSON.stringify({
+            prompt,
+            history
+          })
         }
       );
 
     const data =
-      await getResponseData(
-        response
-      );
+      await readResponse(response);
 
     if (!response.ok) {
-
       throw new Error(
-        data?.error ||
-        data?.details ||
-        data?.message ||
-        `Gemini request failed (HTTP ${response.status}).`
+        data.error ||
+        data.details ||
+        `HTTP ${response.status}`
       );
-
     }
 
     const answer =
-      data?.message ||
-      data?.response ||
-      data?.answer;
+      data.message ||
+      data.response ||
+      data.answer;
 
     if (!answer) {
-
       throw new Error(
-        "Gemini returned no response."
+        "Gemini returned no answer."
       );
-
     }
 
-    bot.textContent = "";
+    botMessage.textContent = "";
 
     await typeText(
-      bot,
+      botMessage,
       String(answer)
     );
 
-    c.messages.push({
-
+    current.messages.push({
       role: "assistant",
-
-      content:
-        String(answer)
-
+      content: String(answer)
     });
 
     saveChats();
 
     statusLine.textContent =
       `Google Gemini • ${
-        data?.model || "AI"
+        data.model || "AI"
       }`;
 
   } catch (error) {
-
     console.error(
-      "Gemini chat error:",
+      "Chat error:",
       error
     );
 
-    bot.textContent =
-      "Gemini se connection nahi ho saka.\n\n" +
+    botMessage.textContent =
+      "❌ No response.\n\n" +
       error.message;
 
     statusLine.textContent =
-      "Google Gemini • Connection error";
-
-  } finally {
-
-    input.disabled = false;
-    micBtn.disabled = false;
-
-    input.focus();
-
+      "Gemini connection error";
   }
+
+  input.disabled = false;
+  micBtn.disabled = false;
+  input.focus();
 }
 
-/* --------------------------------
+/* =========================
    TYPING
--------------------------------- */
+========================= */
 
-function typeText(
-  element,
-  text
-) {
+function typeText(element, text) {
+  return new Promise(resolve => {
+    let index = 0;
 
-  return new Promise(
-    resolve => {
-
-      let i = 0;
-
-      const speed = 8;
-
-      function write() {
-
-        if (
-          i < text.length
-        ) {
-
-          element.textContent +=
-            text.charAt(i);
-
-          i++;
-
-          chat.scrollTop =
-            chat.scrollHeight;
-
-          setTimeout(
-            write,
-            speed
-          );
-
-        } else {
-
-          resolve();
-
-        }
-
+    function write() {
+      if (index >= text.length) {
+        resolve();
+        return;
       }
 
-      write();
+      element.textContent +=
+        text.charAt(index);
 
+      index++;
+
+      chat.scrollTop =
+        chat.scrollHeight;
+
+      setTimeout(write, 5);
     }
-  );
+
+    write();
+  });
 }
 
-/* --------------------------------
+/* =========================
    FORM
--------------------------------- */
+========================= */
 
 form.addEventListener(
   "submit",
-  e => {
+  event => {
+    event.preventDefault();
 
-    e.preventDefault();
+    if (currentMode !== "chat") {
+      return;
+    }
 
     const prompt =
       input.value.trim();
 
-    if (!prompt)
+    if (!prompt) {
       return;
-
-    if (
-      currentMode === "chat"
-    ) {
-
-      sendMessage(
-        prompt
-      );
-
     }
 
+    sendMessage(prompt);
   }
 );
 
-/* --------------------------------
+/* =========================
    NEW CHAT
--------------------------------- */
+========================= */
 
 newChatBtn.onclick = () => {
-
   createChat();
-
 };
 
-/* --------------------------------
+/* =========================
    CLEAR HISTORY
--------------------------------- */
+========================= */
 
 clearAllBtn.onclick = () => {
-
-  if (
+  const confirmed =
     confirm(
       "Delete all saved chat history?"
-    )
-  ) {
+    );
 
-    chats = [];
-
-    currentChatId =
-      null;
-
-    saveChats();
-
-    createChat();
-
+  if (!confirmed) {
+    return;
   }
 
+  chats = [];
+  currentChatId = null;
+
+  saveChats();
+  createChat();
 };
 
-/* --------------------------------
+/* =========================
    THEME
--------------------------------- */
+========================= */
 
 themeToggle.onclick = () => {
+  document.body.classList.toggle("light");
 
-  document.body
-    .classList
-    .toggle("light");
-
-  const theme =
-    document.body
-      .classList
-      .contains("light")
-      ? "light"
-      : "dark";
+  const light =
+    document.body.classList.contains(
+      "light"
+    );
 
   localStorage.setItem(
     "aiStudioTheme",
-    theme
+    light ? "light" : "dark"
   );
 
   themeToggle.textContent =
-    theme === "light"
-      ? "☀️"
-      : "☾";
-
+    light ? "☀️" : "☾";
 };
 
 if (
@@ -564,211 +447,160 @@ if (
     "aiStudioTheme"
   ) === "light"
 ) {
+  document.body.classList.add(
+    "light"
+  );
 
-  document.body
-    .classList
-    .add("light");
-
-  themeToggle.textContent =
-    "☀️";
-
+  themeToggle.textContent = "☀️";
 }
 
-/* --------------------------------
+/* =========================
    TABS
--------------------------------- */
+========================= */
 
 document
   .querySelectorAll(".tab")
   .forEach(tab => {
-
     tab.onclick = () => {
-
       currentMode =
         tab.dataset.mode;
 
       document
-        .querySelectorAll(
-          ".tab"
-        )
-        .forEach(t =>
-          t.classList.remove(
+        .querySelectorAll(".tab")
+        .forEach(item =>
+          item.classList.remove(
             "active"
           )
         );
 
-      tab.classList.add(
-        "active"
-      );
+      tab.classList.add("active");
 
-      if (
-        currentMode === "chat"
-      ) {
-
+      if (currentMode === "chat") {
         pageTitle.textContent =
           "AI Chat";
 
         statusLine.textContent =
           "Google Gemini";
 
-        chatPanel
-          .classList
-          .remove("hidden");
+        chatPanel.classList.remove(
+          "hidden"
+        );
 
-        toolPanel
-          .classList
-          .add("hidden");
+        toolPanel.classList.add(
+          "hidden"
+        );
 
         renderMessages();
-
         input.focus();
 
       } else {
-
-        chatPanel
-          .classList
-          .add("hidden");
-
-        toolPanel
-          .classList
-          .remove("hidden");
-
-        renderTool(
-          currentMode
+        chatPanel.classList.add(
+          "hidden"
         );
 
+        toolPanel.classList.remove(
+          "hidden"
+        );
+
+        renderTool(currentMode);
       }
-
     };
-
   });
 
-/* --------------------------------
+/* =========================
    TOOLS
--------------------------------- */
+========================= */
 
 function renderTool(mode) {
-
-  const configs = {
-
+  const settings = {
     image: {
-
-      title:
-        "Image Studio",
-
-      icon:
-        "🖼️",
-
-      desc:
+      title: "Image Studio",
+      icon: "🖼️",
+      description:
         "Describe the image you want.",
-
       placeholder:
         "A futuristic city at sunset..."
-
     },
 
     video: {
-
-      title:
-        "Video Studio",
-
-      icon:
-        "🎬",
-
-      desc:
-        "Create a video prompt.",
-
+      title: "Video Studio",
+      icon: "🎬",
+      description:
+        "Describe the video you want.",
       placeholder:
-        "A cinematic shot of mountains in the rain..."
-
+        "A cinematic mountain scene..."
     },
 
     voice: {
-
-      title:
-        "Voice Studio",
-
-      icon:
-        "🎙️",
-
-      desc:
-        "Let your browser read text aloud.",
-
+      title: "Voice Studio",
+      icon: "🎙️",
+      description:
+        "Type text and let your browser speak it.",
       placeholder:
         "Hello from AI Studio..."
-
     },
 
     captions: {
-
-      title:
-        "Caption Studio",
-
-      icon:
-        "📝",
-
-      desc:
-        "Generate simple timed captions.",
-
+      title: "Caption Studio",
+      icon: "📝",
+      description:
+        "Paste text to create simple captions.",
       placeholder:
         "Paste your transcript here..."
-
     }
-
   };
 
-  const c =
-    configs[mode];
+  const setting =
+    settings[mode];
 
-  if (!c)
+  if (!setting) {
     return;
+  }
 
   toolCard.innerHTML = `
-
     <h2>
-      ${c.icon} ${c.title}
+      ${setting.icon}
+      ${setting.title}
     </h2>
 
     <p>
-      ${c.desc}
+      ${setting.description}
     </p>
 
     <div class="tool-form">
 
       <textarea
         id="toolInput"
-        placeholder="${c.placeholder}"
+        placeholder="${setting.placeholder}"
       ></textarea>
 
       <button
         id="toolRun"
         class="send-btn"
+        type="button"
       >
         Run
       </button>
 
     </div>
 
-    <div
+    <pre
       id="toolResult"
       class="result hidden"
-    ></div>
-
+    ></pre>
   `;
 
-  document
-    .getElementById("toolRun")
-    .onclick = () =>
-      runTool(mode);
-
+  document.getElementById(
+    "toolRun"
+  ).onclick = () =>
+    runTool(mode);
 }
 
-/* --------------------------------
-   RUN TOOLS
--------------------------------- */
+/* =========================
+   RUN TOOL
+========================= */
 
 async function runTool(mode) {
-
   const toolInput =
     document.getElementById(
       "toolInput"
@@ -779,88 +611,116 @@ async function runTool(mode) {
       "toolResult"
     );
 
-  if (
-    !toolInput ||
-    !result
-  )
+  if (!toolInput || !result) {
     return;
+  }
 
   const value =
     toolInput.value.trim();
 
-  if (!value)
-    return;
+  if (!value) {
+    result.classList.remove(
+      "hidden"
+    );
 
-  result
-    .classList
-    .remove("hidden");
+    result.textContent =
+      "Please enter something first.";
+
+    return;
+  }
+
+  result.classList.remove(
+    "hidden"
+  );
 
   result.textContent =
-    "Working…";
+    "Working...";
 
   try {
-
     /* VOICE */
 
-    if (
-      mode === "voice"
-    ) {
-
+    if (mode === "voice") {
       if (
-        "speechSynthesis"
-        in window
+        !("speechSynthesis" in window)
       ) {
-
-        speechSynthesis.cancel();
-
-        const speech =
-          new SpeechSynthesisUtterance(
-            value
-          );
-
-        speechSynthesis.speak(
-          speech
+        throw new Error(
+          "Your browser does not support voice."
         );
-
-        result.textContent =
-          "Speaking…";
-
-      } else {
-
-        result.textContent =
-          "Your browser does not support speech synthesis.";
-
       }
 
-      return;
+      speechSynthesis.cancel();
 
+      const speech =
+        new SpeechSynthesisUtterance(
+          value
+        );
+
+      speech.lang = "en-US";
+
+      speechSynthesis.speak(
+        speech
+      );
+
+      result.textContent =
+        "🔊 Speaking...";
+
+      return;
     }
 
-    /* ENDPOINT */
+    /* CAPTIONS */
+
+    if (mode === "captions") {
+      const response =
+        await fetch(
+          `${API_BASE}/api/captions`,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
+
+            body: JSON.stringify({
+              text: value
+            })
+          }
+        );
+
+      const data =
+        await readResponse(
+          response
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          data.error ||
+          data.details ||
+          "Caption request failed."
+        );
+      }
+
+      result.textContent =
+        (data.captions || [])
+          .map(
+            caption =>
+              `${caption.start}s - ${caption.end}s  ${caption.text}`
+          )
+          .join("\n");
+
+      return;
+    }
+
+    /* IMAGE / VIDEO */
 
     const endpoint =
       mode === "image"
         ? "/api/image"
-        : mode === "video"
-        ? "/api/video"
-        : "/api/captions";
-
-    /* BODY */
-
-    const body =
-      mode === "captions"
-        ? {
-            text: value
-          }
-        : {
-            prompt: value
-          };
-
-    /* REQUEST */
+        : "/api/video";
 
     const response =
       await fetch(
-        endpoint,
+        `${API_BASE}${endpoint}`,
         {
           method: "POST",
 
@@ -869,162 +729,107 @@ async function runTool(mode) {
               "application/json"
           },
 
-          body:
-            JSON.stringify(
-              body
-            )
-
+          body: JSON.stringify({
+            prompt: value
+          })
         }
       );
 
     const data =
-      await getResponseData(
+      await readResponse(
         response
       );
 
     if (!response.ok) {
-
       throw new Error(
-        data?.error ||
-        data?.details ||
-        data?.message ||
-        `Request failed (HTTP ${response.status}).`
+        data.error ||
+        data.details ||
+        "Request failed."
       );
-
     }
 
-    /* CAPTIONS */
-
-    if (
-      mode === "captions"
-    ) {
-
-      if (
-        Array.isArray(
-          data?.captions
-        )
-      ) {
-
-        result.textContent =
-          data.captions
-            .map(
-              x =>
-                `${x.start}s - ${x.end}s  ${x.text}`
-            )
-            .join("\n");
-
-      } else {
-
-        result.textContent =
-          data?.message ||
-          "No captions received.";
-
-      }
-
-    } else {
-
-      result.textContent =
-        data?.message ||
-        data?.response ||
-        "Request completed.";
-
-    }
+    result.textContent =
+      data.message ||
+      "Request completed.";
 
   } catch (error) {
-
     console.error(
       "Tool error:",
       error
     );
 
     result.textContent =
-      "Error: " +
+      "❌ Error: " +
       error.message;
-
   }
-
 }
 
-/* --------------------------------
+/* =========================
    MICROPHONE
--------------------------------- */
+========================= */
 
 micBtn.onclick = () => {
-
-  const SpeechRecognition =
+  const Recognition =
     window.SpeechRecognition ||
     window.webkitSpeechRecognition;
 
-  if (
-    !SpeechRecognition
-  ) {
-
+  if (!Recognition) {
     alert(
       "Voice input is not supported by this browser."
     );
 
     return;
-
   }
 
-  const rec =
-    new SpeechRecognition();
+  const recognition =
+    new Recognition();
 
-  rec.lang =
-    "en-US";
-
-  rec.interimResults =
+  recognition.lang = "en-US";
+  recognition.interimResults =
     false;
 
-  rec.onstart = () => {
-
-    micBtn.textContent =
-      "🔴";
-
+  recognition.onstart = () => {
+    micBtn.textContent = "🔴";
   };
 
-  rec.onresult = e => {
-
+  recognition.onresult = event => {
     input.value =
-      e.results[0][0]
+      event.results[0][0]
         .transcript;
 
     input.focus();
-
   };
 
-  rec.onerror = () => {
+  recognition.onerror = error => {
+    console.error(
+      "Microphone error:",
+      error
+    );
 
-    micBtn.textContent =
-      "🎙️";
-
+    micBtn.textContent = "🎙️";
   };
 
-  rec.onend = () => {
-
-    micBtn.textContent =
-      "🎙️";
-
+  recognition.onend = () => {
+    micBtn.textContent = "🎙️";
   };
 
-  rec.start();
-
+  recognition.start();
 };
 
-/* --------------------------------
-   START APP
--------------------------------- */
+/* =========================
+   START
+========================= */
 
-if (!chats.length) {
-
+if (chats.length === 0) {
   createChat();
-
 } else {
-
   currentChatId =
     chats[0].id;
 
   renderChatList();
   renderMessages();
-
 }
+
+console.log(
+  "AI Studio frontend loaded successfully."
+);
