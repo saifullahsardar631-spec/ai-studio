@@ -1,40 +1,78 @@
-```html
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
   <title>AI Studio</title>
-  <link rel="stylesheet" href="style.css">
+
+  <link
+    rel="stylesheet"
+    href="style.css"
+  >
 </head>
 
 <body>
+
   <div class="app">
 
+    <!-- SIDEBAR -->
     <aside class="sidebar">
+
       <div class="brand">
         <span class="brand-icon">✦</span>
         <span>AI Studio</span>
       </div>
 
-      <button id="newChat" class="new-chat">＋ New Chat</button>
+      <button
+        id="newChat"
+        class="new-chat"
+      >
+        ＋ New Chat
+      </button>
 
-      <div class="sidebar-title">Recent chats</div>
-      <div id="chatList" class="chat-list"></div>
+      <div class="sidebar-title">
+        Recent chats
+      </div>
+
+      <div
+        id="chatList"
+        class="chat-list"
+      ></div>
 
       <div class="sidebar-bottom">
-        <button id="clearAll" class="ghost-btn">
+
+        <button
+          id="clearAll"
+          class="ghost-btn"
+        >
           Clear chat history
         </button>
+
       </div>
+
     </aside>
 
+
+    <!-- WORKSPACE -->
     <section class="workspace">
 
+      <!-- TOP BAR -->
       <header class="topbar">
+
         <div>
-          <h1 id="pageTitle">AI Chat</h1>
-          <p id="statusLine">Gemini • gemini-3.6-flash</p>
+
+          <h1 id="pageTitle">
+            AI Chat
+          </h1>
+
+          <p id="statusLine">
+            Gemini • gemini-2.5-flash
+          </p>
+
         </div>
 
         <button
@@ -44,41 +82,77 @@
         >
           ☾
         </button>
+
       </header>
 
+
+      <!-- TABS -->
       <nav class="tabs">
-        <button class="tab active" data-mode="chat">
+
+        <button
+          class="tab active"
+          data-mode="chat"
+        >
           💬 Chat
         </button>
 
-        <button class="tab" data-mode="image">
+        <button
+          class="tab"
+          data-mode="image"
+        >
           🖼️ Image
         </button>
 
-        <button class="tab" data-mode="video">
+        <button
+          class="tab"
+          data-mode="video"
+        >
           🎬 Video
         </button>
 
-        <button class="tab" data-mode="voice">
+        <button
+          class="tab"
+          data-mode="voice"
+        >
           🎙️ Voice
         </button>
 
-        <button class="tab" data-mode="captions">
+        <button
+          class="tab"
+          data-mode="captions"
+        >
           📝 Captions
         </button>
+
       </nav>
 
-      <main id="content" class="content">
 
-        <div id="chatPanel" class="panel">
+      <!-- CONTENT -->
+      <main
+        id="content"
+        class="content"
+      >
 
-          <div id="chat" class="chat">
+        <!-- CHAT PANEL -->
+        <div
+          id="chatPanel"
+          class="panel"
+        >
+
+          <div
+            id="chat"
+            class="chat"
+          >
 
             <div class="welcome">
 
-              <div class="welcome-icon">✦</div>
+              <div class="welcome-icon">
+                ✦
+              </div>
 
-              <h2>How can I help?</h2>
+              <h2>
+                How can I help?
+              </h2>
 
               <p>
                 Ask anything. Your
@@ -110,7 +184,12 @@
 
           </div>
 
-          <form id="form" class="composer">
+
+          <!-- COMPOSER -->
+          <form
+            id="form"
+            class="composer"
+          >
 
             <button
               type="button"
@@ -123,6 +202,7 @@
 
             <input
               id="input"
+              type="text"
               autocomplete="off"
               placeholder="Message AI Studio..."
             />
@@ -139,8 +219,18 @@
 
         </div>
 
-        <div id="toolPanel" class="panel hidden">
-          <div id="toolCard" class="tool-card"></div>
+
+        <!-- TOOLS PANEL -->
+        <div
+          id="toolPanel"
+          class="panel hidden"
+        >
+
+          <div
+            id="toolCard"
+            class="tool-card"
+          ></div>
+
         </div>
 
       </main>
@@ -149,8 +239,9 @@
 
   </div>
 
+
+  <!-- JAVASCRIPT -->
   <script src="app.js"></script>
 
 </body>
 </html>
-```
