@@ -10,14 +10,35 @@ const toolPanel = document.getElementById("toolPanel");
 const chatPanel = document.getElementById("chatPanel");
 const toolCard = document.getElementById("toolCard");
 const pageTitle = document.getElementById("pageTitle");
+const statusLine = document.getElementById("statusLine");
 
-let chats = JSON.parse(localStorage.getItem("aiStudioChats") || "[]");
+let chats = JSON.parse(
+  localStorage.getItem("aiStudioChats") || "[]"
+);
+
 let currentChatId = null;
 let currentMode = "chat";
 
+/* --------------------------------
+   CONFIG
+-------------------------------- */
+
+const API_BASE = "";
+
+/* --------------------------------
+   STORAGE
+-------------------------------- */
+
 function saveChats() {
-  localStorage.setItem("aiStudioChats", JSON.stringify(chats));
+  localStorage.setItem(
+    "aiStudioChats",
+    JSON.stringify(chats)
+  );
 }
+
+/* --------------------------------
+   CHAT
+-------------------------------- */
 
 function createChat() {
   const id = Date.now().toString();
@@ -29,14 +50,18 @@ function createChat() {
   });
 
   currentChatId = id;
+
   saveChats();
   renderChatList();
   renderMessages();
+
   input.focus();
 }
 
 function currentChat() {
-  return chats.find(c => c.id === currentChatId);
+  return chats.find(
+    c => c.id === currentChatId
+  );
 }
 
 function ensureChat() {
@@ -44,6 +69,10 @@ function ensureChat() {
     createChat();
   }
 }
+
+/* --------------------------------
+   CHAT LIST
+-------------------------------- */
 
 function renderChatList() {
   chatList.innerHTML = "";
@@ -53,14 +82,19 @@ function renderChatList() {
 
     el.className =
       "chat-item" +
-      (c.id === currentChatId ? " active" : "");
+      (c.id === currentChatId
+        ? " active"
+        : "");
 
-    el.textContent = c.title || "New Chat";
+    el.textContent =
+      c.title || "New Chat";
 
     el.onclick = () => {
       currentChatId = c.id;
+
       renderChatList();
       renderMessages();
+
       input.focus();
     };
 
@@ -68,17 +102,29 @@ function renderChatList() {
   });
 }
 
+/* --------------------------------
+   MESSAGE
+-------------------------------- */
+
 function addMessage(text, role) {
   const d = document.createElement("div");
 
-  d.className = "msg " + role;
+  d.className =
+    "msg " + role;
+
   d.textContent = text;
 
   chat.appendChild(d);
-  chat.scrollTop = chat.scrollHeight;
+
+  chat.scrollTop =
+    chat.scrollHeight;
 
   return d;
 }
+
+/* --------------------------------
+   RENDER MESSAGES
+-------------------------------- */
 
 function renderMessages() {
   chat.innerHTML = "";
@@ -88,12 +134,18 @@ function renderMessages() {
   if (!c || !c.messages.length) {
     chat.innerHTML = `
       <div class="welcome">
-        <div class="welcome-icon">✦</div>
 
-        <h2>How can I help?</h2>
+        <div class="welcome-icon">
+          ✦
+        </div>
+
+        <h2>
+          How can I help?
+        </h2>
 
         <p>
-          Ask anything. Your
+          Ask anything.
+          Your
           <strong>AI Studio</strong>
           will answer.
         </p>
@@ -117,212 +169,363 @@ function renderMessages() {
           </button>
 
         </div>
+
       </div>
     `;
 
     bindSuggestions();
+
     return;
   }
 
   c.messages.forEach(m => {
+
     addMessage(
       m.content,
-      m.role === "user" ? "user" : "bot"
+      m.role === "user"
+        ? "user"
+        : "bot"
     );
-  });
-}
 
-function bindSuggestions() {
-  document.querySelectorAll(".suggestion").forEach(button => {
-    button.onclick = () => {
-      input.value = button.textContent.trim();
-      form.requestSubmit();
-    };
   });
 }
 
 /* --------------------------------
-   SAFE JSON RESPONSE FUNCTION
+   SUGGESTIONS
+-------------------------------- */
+
+function bindSuggestions() {
+
+  document
+    .querySelectorAll(".suggestion")
+    .forEach(button => {
+
+      button.onclick = () => {
+
+        input.value =
+          button.textContent.trim();
+
+        form.requestSubmit();
+
+      };
+
+    });
+
+}
+
+/* --------------------------------
+   SAFE JSON
 -------------------------------- */
 
 async function getResponseData(response) {
-  const contentType =
-    response.headers.get("content-type") || "";
 
-  if (contentType.includes("application/json")) {
-    return await response.json();
+  const contentType =
+    response.headers.get(
+      "content-type"
+    ) || "";
+
+  const text =
+    await response.text();
+
+  if (!text.trim()) {
+
+    throw new Error(
+      `Server returned an empty response (HTTP ${response.status}).`
+    );
+
   }
 
-  const text = await response.text();
+  if (
+    contentType.includes(
+      "application/json"
+    )
+  ) {
 
-  throw new Error(
-    text ||
-    `Server returned an invalid response (${response.status})`
-  );
+    try {
+
+      return JSON.parse(text);
+
+    } catch {
+
+      throw new Error(
+        "Server returned invalid JSON."
+      );
+
+    }
+
+  }
+
+  try {
+
+    return JSON.parse(text);
+
+  } catch {
+
+    throw new Error(
+      `Server returned an unexpected response (HTTP ${response.status}).`
+    );
+
+  }
 }
 
 /* --------------------------------
-   SEND CHAT MESSAGE
+   SEND CHAT
 -------------------------------- */
 
 async function sendMessage(prompt) {
+
   ensureChat();
 
-  const c = currentChat();
+  const c =
+    currentChat();
 
   c.messages.push({
     role: "user",
     content: prompt
   });
 
-  if (c.title === "New Chat") {
-    c.title = prompt.slice(0, 42);
+  if (
+    c.title === "New Chat"
+  ) {
+
+    c.title =
+      prompt.slice(0, 42);
+
   }
 
   saveChats();
+
   renderChatList();
   renderMessages();
 
   input.value = "";
+
   input.disabled = true;
   micBtn.disabled = true;
 
-  const bot = addMessage("Thinking…", "bot");
+  const bot =
+    addMessage(
+      "Thinking…",
+      "bot"
+    );
 
   try {
-    const r = await fetch("/api/chat", {
-      method: "POST",
 
-      headers: {
-        "Content-Type": "application/json"
-      },
+    statusLine.textContent =
+      "Google Gemini • AI Studio";
 
-      body: JSON.stringify({
-        prompt: prompt,
+    const response =
+      await fetch(
+        `${API_BASE}/api/chat`,
+        {
+          method: "POST",
 
-        history: c.messages.slice(-12, -1)
-      })
-    });
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
 
-    const data = await getResponseData(r);
+          body:
+            JSON.stringify({
 
-    if (!r.ok) {
+              prompt,
+
+              history:
+                c.messages.slice(
+                  -12,
+                  -1
+                )
+
+            })
+
+        }
+      );
+
+    const data =
+      await getResponseData(
+        response
+      );
+
+    if (!response.ok) {
+
       throw new Error(
         data?.error ||
+        data?.details ||
         data?.message ||
-        `Request failed (${r.status})`
+        `Gemini request failed (HTTP ${response.status}).`
       );
+
     }
 
     const answer =
       data?.message ||
       data?.response ||
-      data?.answer ||
-      "No response received.";
+      data?.answer;
+
+    if (!answer) {
+
+      throw new Error(
+        "Gemini returned no response."
+      );
+
+    }
 
     bot.textContent = "";
 
-    await typeText(bot, answer);
+    await typeText(
+      bot,
+      String(answer)
+    );
 
     c.messages.push({
+
       role: "assistant",
-      content: answer
+
+      content:
+        String(answer)
+
     });
 
     saveChats();
 
-  } catch (err) {
+    statusLine.textContent =
+      `Google Gemini • ${
+        data?.model || "AI"
+      }`;
 
-    console.error("Chat error:", err);
+  } catch (error) {
+
+    console.error(
+      "Gemini chat error:",
+      error
+    );
 
     bot.textContent =
-      "Backend se connection nahi ho saka.\n\n" +
-      err.message;
+      "Gemini se connection nahi ho saka.\n\n" +
+      error.message;
+
+    statusLine.textContent =
+      "Google Gemini • Connection error";
 
   } finally {
 
     input.disabled = false;
     micBtn.disabled = false;
+
     input.focus();
+
   }
 }
 
 /* --------------------------------
-   TYPING EFFECT
+   TYPING
 -------------------------------- */
 
-function typeText(element, text) {
-  return new Promise(resolve => {
+function typeText(
+  element,
+  text
+) {
 
-    let i = 0;
-    const speed = 8;
+  return new Promise(
+    resolve => {
 
-    function write() {
+      let i = 0;
 
-      if (i < text.length) {
+      const speed = 8;
 
-        element.textContent +=
-          text.charAt(i);
+      function write() {
 
-        i++;
+        if (
+          i < text.length
+        ) {
 
-        chat.scrollTop =
-          chat.scrollHeight;
+          element.textContent +=
+            text.charAt(i);
 
-        setTimeout(write, speed);
+          i++;
 
-      } else {
+          chat.scrollTop =
+            chat.scrollHeight;
 
-        resolve();
+          setTimeout(
+            write,
+            speed
+          );
+
+        } else {
+
+          resolve();
+
+        }
 
       }
-    }
 
-    write();
-  });
+      write();
+
+    }
+  );
 }
 
 /* --------------------------------
-   CHAT FORM
+   FORM
 -------------------------------- */
 
-form.addEventListener("submit", e => {
+form.addEventListener(
+  "submit",
+  e => {
 
-  e.preventDefault();
+    e.preventDefault();
 
-  const prompt =
-    input.value.trim();
+    const prompt =
+      input.value.trim();
 
-  if (!prompt) return;
+    if (!prompt)
+      return;
 
-  if (currentMode === "chat") {
-    sendMessage(prompt);
+    if (
+      currentMode === "chat"
+    ) {
+
+      sendMessage(
+        prompt
+      );
+
+    }
+
   }
-
-});
+);
 
 /* --------------------------------
    NEW CHAT
 -------------------------------- */
 
 newChatBtn.onclick = () => {
+
   createChat();
+
 };
 
 /* --------------------------------
-   CLEAR ALL
+   CLEAR HISTORY
 -------------------------------- */
 
 clearAllBtn.onclick = () => {
 
-  if (confirm("Delete all saved chat history?")) {
+  if (
+    confirm(
+      "Delete all saved chat history?"
+    )
+  ) {
 
     chats = [];
-    currentChatId = null;
+
+    currentChatId =
+      null;
 
     saveChats();
 
     createChat();
+
   }
 
 };
@@ -333,10 +536,14 @@ clearAllBtn.onclick = () => {
 
 themeToggle.onclick = () => {
 
-  document.body.classList.toggle("light");
+  document.body
+    .classList
+    .toggle("light");
 
   const theme =
-    document.body.classList.contains("light")
+    document.body
+      .classList
+      .contains("light")
       ? "light"
       : "dark";
 
@@ -349,71 +556,95 @@ themeToggle.onclick = () => {
     theme === "light"
       ? "☀️"
       : "☾";
+
 };
 
 if (
-  localStorage.getItem("aiStudioTheme")
-  === "light"
+  localStorage.getItem(
+    "aiStudioTheme"
+  ) === "light"
 ) {
 
-  document.body.classList.add("light");
+  document.body
+    .classList
+    .add("light");
 
-  themeToggle.textContent = "☀️";
+  themeToggle.textContent =
+    "☀️";
+
 }
 
 /* --------------------------------
    TABS
 -------------------------------- */
 
-document.querySelectorAll(".tab").forEach(tab => {
+document
+  .querySelectorAll(".tab")
+  .forEach(tab => {
 
-  tab.onclick = () => {
+    tab.onclick = () => {
 
-    currentMode =
-      tab.dataset.mode;
+      currentMode =
+        tab.dataset.mode;
 
-    document
-      .querySelectorAll(".tab")
-      .forEach(t =>
-        t.classList.remove("active")
+      document
+        .querySelectorAll(
+          ".tab"
+        )
+        .forEach(t =>
+          t.classList.remove(
+            "active"
+          )
+        );
+
+      tab.classList.add(
+        "active"
       );
 
-    tab.classList.add("active");
+      if (
+        currentMode === "chat"
+      ) {
 
-    if (currentMode === "chat") {
+        pageTitle.textContent =
+          "AI Chat";
 
-      pageTitle.textContent =
-        "AI Chat";
+        statusLine.textContent =
+          "Google Gemini";
 
-      chatPanel.classList.remove(
-        "hidden"
-      );
+        chatPanel
+          .classList
+          .remove("hidden");
 
-      toolPanel.classList.add(
-        "hidden"
-      );
+        toolPanel
+          .classList
+          .add("hidden");
 
-      renderMessages();
-      input.focus();
+        renderMessages();
 
-    } else {
+        input.focus();
 
-      chatPanel.classList.add(
-        "hidden"
-      );
+      } else {
 
-      toolPanel.classList.remove(
-        "hidden"
-      );
+        chatPanel
+          .classList
+          .add("hidden");
 
-      renderTool(currentMode);
-    }
-  };
+        toolPanel
+          .classList
+          .remove("hidden");
 
-});
+        renderTool(
+          currentMode
+        );
+
+      }
+
+    };
+
+  });
 
 /* --------------------------------
-   TOOL CONFIGURATION
+   TOOLS
 -------------------------------- */
 
 function renderTool(mode) {
@@ -421,42 +652,76 @@ function renderTool(mode) {
   const configs = {
 
     image: {
-      title: "Image Studio",
-      icon: "🖼️",
-      desc: "Describe the image you want.",
+
+      title:
+        "Image Studio",
+
+      icon:
+        "🖼️",
+
+      desc:
+        "Describe the image you want.",
+
       placeholder:
         "A futuristic city at sunset..."
+
     },
 
     video: {
-      title: "Video Studio",
-      icon: "🎬",
-      desc: "Create a video prompt.",
+
+      title:
+        "Video Studio",
+
+      icon:
+        "🎬",
+
+      desc:
+        "Create a video prompt.",
+
       placeholder:
         "A cinematic shot of mountains in the rain..."
+
     },
 
     voice: {
-      title: "Voice Studio",
-      icon: "🎙️",
-      desc: "Let your browser read text aloud.",
+
+      title:
+        "Voice Studio",
+
+      icon:
+        "🎙️",
+
+      desc:
+        "Let your browser read text aloud.",
+
       placeholder:
         "Hello from AI Studio..."
+
     },
 
     captions: {
-      title: "Caption Studio",
-      icon: "📝",
-      desc: "Generate simple timed captions.",
+
+      title:
+        "Caption Studio",
+
+      icon:
+        "📝",
+
+      desc:
+        "Generate simple timed captions.",
+
       placeholder:
         "Paste your transcript here..."
+
     }
 
   };
 
-  const c = configs[mode];
+  const c =
+    configs[mode];
 
-  if (!c) return;
+  if (!c)
+    return;
 
   toolCard.innerHTML = `
 
@@ -491,10 +756,11 @@ function renderTool(mode) {
 
   `;
 
-  document.getElementById(
-    "toolRun"
-  ).onclick = () =>
-    runTool(mode);
+  document
+    .getElementById("toolRun")
+    .onclick = () =>
+      runTool(mode);
+
 }
 
 /* --------------------------------
@@ -513,16 +779,21 @@ async function runTool(mode) {
       "toolResult"
     );
 
-  if (!toolInput || !result) return;
+  if (
+    !toolInput ||
+    !result
+  )
+    return;
 
   const value =
     toolInput.value.trim();
 
-  if (!value) return;
+  if (!value)
+    return;
 
-  result.classList.remove(
-    "hidden"
-  );
+  result
+    .classList
+    .remove("hidden");
 
   result.textContent =
     "Working…";
@@ -531,7 +802,9 @@ async function runTool(mode) {
 
     /* VOICE */
 
-    if (mode === "voice") {
+    if (
+      mode === "voice"
+    ) {
 
       if (
         "speechSynthesis"
@@ -560,6 +833,7 @@ async function runTool(mode) {
       }
 
       return;
+
     }
 
     /* ENDPOINT */
@@ -571,7 +845,7 @@ async function runTool(mode) {
         ? "/api/video"
         : "/api/captions";
 
-    /* REQUEST BODY */
+    /* BODY */
 
     const body =
       mode === "captions"
@@ -584,38 +858,46 @@ async function runTool(mode) {
 
     /* REQUEST */
 
-    const r = await fetch(
-      endpoint,
-      {
-        method: "POST",
+    const response =
+      await fetch(
+        endpoint,
+        {
+          method: "POST",
 
-        headers: {
-          "Content-Type":
-            "application/json"
-        },
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
 
-        body:
-          JSON.stringify(body)
-      }
-    );
+          body:
+            JSON.stringify(
+              body
+            )
 
-    /* SAFE RESPONSE */
+        }
+      );
 
     const data =
-      await getResponseData(r);
+      await getResponseData(
+        response
+      );
 
-    if (!r.ok) {
+    if (!response.ok) {
 
       throw new Error(
         data?.error ||
+        data?.details ||
         data?.message ||
-        `Request failed (${r.status})`
+        `Request failed (HTTP ${response.status}).`
       );
+
     }
 
     /* CAPTIONS */
 
-    if (mode === "captions") {
+    if (
+      mode === "captions"
+    ) {
 
       if (
         Array.isArray(
@@ -636,6 +918,7 @@ async function runTool(mode) {
         result.textContent =
           data?.message ||
           "No captions received.";
+
       }
 
     } else {
@@ -644,19 +927,22 @@ async function runTool(mode) {
         data?.message ||
         data?.response ||
         "Request completed.";
+
     }
 
-  } catch (err) {
+  } catch (error) {
 
     console.error(
       "Tool error:",
-      err
+      error
     );
 
     result.textContent =
       "Error: " +
-      err.message;
+      error.message;
+
   }
+
 }
 
 /* --------------------------------
@@ -669,23 +955,32 @@ micBtn.onclick = () => {
     window.SpeechRecognition ||
     window.webkitSpeechRecognition;
 
-  if (!SpeechRecognition) {
+  if (
+    !SpeechRecognition
+  ) {
 
     alert(
       "Voice input is not supported by this browser."
     );
 
     return;
+
   }
 
   const rec =
     new SpeechRecognition();
 
-  rec.lang = "en-US";
-  rec.interimResults = false;
+  rec.lang =
+    "en-US";
+
+  rec.interimResults =
+    false;
 
   rec.onstart = () => {
-    micBtn.textContent = "🔴";
+
+    micBtn.textContent =
+      "🔴";
+
   };
 
   rec.onresult = e => {
@@ -695,17 +990,25 @@ micBtn.onclick = () => {
         .transcript;
 
     input.focus();
+
   };
 
   rec.onerror = () => {
-    micBtn.textContent = "🎙️";
+
+    micBtn.textContent =
+      "🎙️";
+
   };
 
   rec.onend = () => {
-    micBtn.textContent = "🎙️";
+
+    micBtn.textContent =
+      "🎙️";
+
   };
 
   rec.start();
+
 };
 
 /* --------------------------------
@@ -723,4 +1026,5 @@ if (!chats.length) {
 
   renderChatList();
   renderMessages();
+
 }
