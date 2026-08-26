@@ -19,11 +19,11 @@ app.use(cors());
 app.use(express.json({ limit: "4mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-app.get("/", (_req, res) => {
+app.get("/", (req, res) => {
 res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.get("/health", (_req, res) => {
+app.get("/health", (req, res) => {
 res.json({
 ok: true,
 service: "AI Studio Backend",
@@ -38,16 +38,25 @@ const recent = Array.isArray(history)
 ? history.slice(-12)
 : [];
 
-const contents = recent
-.filter(m => m && m.content)
-.map(m => ({
-role: m.role === "assistant" ? "model" : "user",
-parts: [
-{
-text: String(m.content)
+const contents = [];
+
+for (const message of recent) {
+if (!message || !message.content) {
+continue;
 }
-]
-}));
+
+```
+contents.push({
+  role: message.role === "assistant" ? "model" : "user",
+  parts: [
+    {
+      text: String(message.content)
+    }
+  ]
+});
+```
+
+}
 
 contents.push({
 role: "user",
@@ -62,20 +71,19 @@ return contents;
 }
 
 app.post("/api/chat", async (req, res) => {
-const prompt = String(
-req.body?.prompt || ""
-).trim();
-
+const prompt = String(req.body?.prompt || "").trim();
 const history = req.body?.history || [];
 
 if (!prompt) {
 return res.status(400).json({
+ok: false,
 error: "Prompt is required"
 });
 }
 
 if (!GEMINI_API_KEY) {
 return res.status(500).json({
+ok: false,
 error: "GEMINI_API_KEY is not configured."
 });
 }
@@ -109,52 +117,56 @@ let data;
 try {
   data = JSON.parse(raw);
 } catch {
-  throw new Error(
-    "Gemini returned an invalid response. HTTP " +
-    response.status
-  );
+  return res.status(502).json({
+    ok: false,
+    error: "Gemini returned invalid JSON.",
+    details: raw.slice(0, 500)
+  });
 }
 
 if (!response.ok) {
-  throw new Error(
-    data?.error?.message ||
-    "Gemini request failed. HTTP " +
-    response.status
-  );
+  return res.status(response.status).json({
+    ok: false,
+    error:
+      data?.error?.message ||
+      "Gemini request failed.",
+    details: data?.error || null
+  });
 }
 
-const answer =
-  data?.candidates?.[0]?.content?.parts
-    ?.map(part => part.text || "")
-    .join("")
-    .trim();
+const parts =
+  data?.candidates?.[0]?.content?.parts || [];
+
+const answer = parts
+  .map(part => part?.text || "")
+  .join("")
+  .trim();
 
 if (!answer) {
-  throw new Error(
-    "Gemini returned no response."
-  );
+  return res.status(502).json({
+    ok: false,
+    error: "Gemini returned no response."
+  });
 }
 
 return res.json({
   ok: true,
   type: "chat",
   status: "success",
+  provider: "Google Gemini",
   model: GEMINI_MODEL,
   message: answer
 });
 ```
 
 } catch (error) {
-console.error(
-"Gemini error:",
-error
-);
+console.error("Gemini error:", error);
 
 ```
 return res.status(503).json({
   ok: false,
   error: "Could not connect to Gemini.",
-  details: error.message
+  details: error?.message || String(error)
 });
 ```
 
@@ -162,12 +174,11 @@ return res.status(503).json({
 });
 
 app.post("/api/image", (req, res) => {
-const prompt = String(
-req.body?.prompt || ""
-).trim();
+const prompt = String(req.body?.prompt || "").trim();
 
 if (!prompt) {
 return res.status(400).json({
+ok: false,
 error: "Prompt is required"
 });
 }
@@ -183,12 +194,11 @@ message:
 });
 
 app.post("/api/video", (req, res) => {
-const prompt = String(
-req.body?.prompt || ""
-).trim();
+const prompt = String(req.body?.prompt || "").trim();
 
 if (!prompt) {
 return res.status(400).json({
+ok: false,
 error: "Prompt is required"
 });
 }
@@ -205,12 +215,11 @@ message:
 });
 
 app.post("/api/voice", (req, res) => {
-const text = String(
-req.body?.text || ""
-).trim();
+const text = String(req.body?.text || "").trim();
 
 if (!text) {
 return res.status(400).json({
+ok: false,
 error: "Text is required"
 });
 }
@@ -224,12 +233,11 @@ text
 });
 
 app.post("/api/captions", (req, res) => {
-const text = String(
-req.body?.text || ""
-).trim();
+const text = String(req.body?.text || "").trim();
 
 if (!text) {
 return res.status(400).json({
+ok: false,
 error: "Transcript is required"
 });
 }
@@ -239,9 +247,9 @@ const parts = text
 .map(s => s.trim())
 .filter(Boolean);
 
-const captions = parts.map((line, i) => ({
-start: i * 3,
-end: i * 3 + 3,
+const captions = parts.map((line, index) => ({
+start: index * 3,
+end: index * 3 + 3,
 text: line
 }));
 
@@ -250,6 +258,14 @@ ok: true,
 type: "captions",
 status: "ready",
 captions
+});
+});
+
+app.use((req, res) => {
+res.status(404).json({
+ok: false,
+error: "Route not found",
+path: req.path
 });
 });
 
