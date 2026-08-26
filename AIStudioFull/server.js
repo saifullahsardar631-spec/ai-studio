@@ -1,3 +1,4 @@
+```js
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -13,14 +14,17 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_MODEL =
+  process.env.GEMINI_MODEL || "gemini-3.6-flash";
 
 app.use(cors());
 app.use(express.json({ limit: "4mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.sendFile(
+    path.join(__dirname, "public", "index.html")
+  );
 });
 
 app.get("/health", (_req, res) => {
@@ -34,25 +38,41 @@ app.get("/health", (_req, res) => {
 });
 
 function buildContents(prompt, history = []) {
-  const recent = Array.isArray(history) ? history.slice(-12) : [];
+  const recent = Array.isArray(history)
+    ? history.slice(-12)
+    : [];
 
   const contents = recent
     .filter(m => m && m.content)
     .map(m => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: String(m.content) }]
+      role:
+        m.role === "assistant"
+          ? "model"
+          : "user",
+      parts: [
+        {
+          text: String(m.content)
+        }
+      ]
     }));
 
   contents.push({
     role: "user",
-    parts: [{ text: prompt }]
+    parts: [
+      {
+        text: prompt
+      }
+    ]
   });
 
   return contents;
 }
 
 app.post("/api/chat", async (req, res) => {
-  const prompt = String(req.body?.prompt || "").trim();
+  const prompt = String(
+    req.body?.prompt || ""
+  ).trim();
+
   const history = req.body?.history || [];
 
   if (!prompt) {
@@ -63,22 +83,32 @@ app.post("/api/chat", async (req, res) => {
 
   if (!GEMINI_API_KEY) {
     return res.status(500).json({
-      error: "GEMINI_API_KEY is not configured."
+      error:
+        "GEMINI_API_KEY is not configured."
     });
   }
 
   try {
     const url =
-      `https://generativelanguage.googleapis.com/v1beta/models/` +
-      `${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
+      "https://generativelanguage.googleapis.com/" +
+      "v1beta/models/" +
+      GEMINI_MODEL +
+      ":generateContent?key=" +
+      encodeURIComponent(GEMINI_API_KEY);
 
     const response = await fetch(url, {
       method: "POST",
+
       headers: {
         "Content-Type": "application/json"
       },
+
       body: JSON.stringify({
-        contents: buildContents(prompt, history),
+        contents: buildContents(
+          prompt,
+          history
+        ),
+
         generationConfig: {
           temperature: 0.7,
           maxOutputTokens: 2048
@@ -93,16 +123,27 @@ app.post("/api/chat", async (req, res) => {
     try {
       data = JSON.parse(raw);
     } catch {
-      throw new Error(
-        `Gemini returned an invalid response. HTTP ${response.status}`
-      );
+      return res.status(502).json({
+        ok: false,
+        error:
+          "Gemini returned an invalid response.",
+        details:
+          "HTTP " + response.status
+      });
     }
 
     if (!response.ok) {
-      throw new Error(
-        data?.error?.message ||
-        `Gemini request failed. HTTP ${response.status}`
+      console.error(
+        "Gemini API error:",
+        data
       );
+
+      return res.status(response.status).json({
+        ok: false,
+        error:
+          data?.error?.message ||
+          "Gemini request failed."
+      });
     }
 
     const answer =
@@ -112,10 +153,14 @@ app.post("/api/chat", async (req, res) => {
         .trim();
 
     if (!answer) {
-      throw new Error("Gemini returned no response.");
+      return res.status(502).json({
+        ok: false,
+        error:
+          "Gemini returned no response."
+      });
     }
 
-    res.json({
+    return res.json({
       ok: true,
       type: "chat",
       status: "success",
@@ -124,18 +169,24 @@ app.post("/api/chat", async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Gemini error:", error);
+    console.error(
+      "Gemini error:",
+      error
+    );
 
-    res.status(503).json({
+    return res.status(503).json({
       ok: false,
-      error: "Could not connect to Gemini.",
+      error:
+        "Could not connect to Gemini.",
       details: error.message
     });
   }
 });
 
 app.post("/api/image", (req, res) => {
-  const prompt = String(req.body?.prompt || "").trim();
+  const prompt = String(
+    req.body?.prompt || ""
+  ).trim();
 
   if (!prompt) {
     return res.status(400).json({
@@ -143,7 +194,7 @@ app.post("/api/image", (req, res) => {
     });
   }
 
-  res.json({
+  return res.json({
     ok: true,
     type: "image",
     status: "provider-required",
@@ -154,7 +205,9 @@ app.post("/api/image", (req, res) => {
 });
 
 app.post("/api/video", (req, res) => {
-  const prompt = String(req.body?.prompt || "").trim();
+  const prompt = String(
+    req.body?.prompt || ""
+  ).trim();
 
   if (!prompt) {
     return res.status(400).json({
@@ -162,19 +215,22 @@ app.post("/api/video", (req, res) => {
     });
   }
 
-  res.json({
+  return res.json({
     ok: true,
     type: "video",
     status: "provider-required",
     prompt,
-    jobId: `demo_${Date.now()}`,
+    jobId:
+      "demo_" + Date.now(),
     message:
-      "Video generation UI is ready. Connect a video provider for real generation."
+      "Video generation UI is ready. Connect a video provider for real video generation."
   });
 });
 
 app.post("/api/voice", (req, res) => {
-  const text = String(req.body?.text || "").trim();
+  const text = String(
+    req.body?.text || ""
+  ).trim();
 
   if (!text) {
     return res.status(400).json({
@@ -182,7 +238,7 @@ app.post("/api/voice", (req, res) => {
     });
   }
 
-  res.json({
+  return res.json({
     ok: true,
     type: "voice",
     status: "ready",
@@ -191,7 +247,9 @@ app.post("/api/voice", (req, res) => {
 });
 
 app.post("/api/captions", (req, res) => {
-  const text = String(req.body?.text || "").trim();
+  const text = String(
+    req.body?.text || ""
+  ).trim();
 
   if (!text) {
     return res.status(400).json({
@@ -204,13 +262,15 @@ app.post("/api/captions", (req, res) => {
     .map(s => s.trim())
     .filter(Boolean);
 
-  const captions = parts.map((line, i) => ({
-    start: i * 3,
-    end: i * 3 + 3,
-    text: line
-  }));
+  const captions = parts.map(
+    (line, i) => ({
+      start: i * 3,
+      end: i * 3 + 3,
+      text: line
+    })
+  );
 
-  res.json({
+  return res.json({
     ok: true,
     type: "captions",
     status: "ready",
@@ -219,7 +279,19 @@ app.post("/api/captions", (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`AI Studio Backend running on http://localhost:${port}`);
-  console.log(`Gemini model: ${GEMINI_MODEL}`);
-  console.log(`Gemini key configured: ${Boolean(GEMINI_API_KEY)}`);
+  console.log(
+    "AI Studio Backend running on port " +
+    port
+  );
+
+  console.log(
+    "Gemini model: " +
+    GEMINI_MODEL
+  );
+
+  console.log(
+    "Gemini key configured: " +
+    Boolean(GEMINI_API_KEY)
+  );
 });
+```
